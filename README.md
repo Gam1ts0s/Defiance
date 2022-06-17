@@ -1,3 +1,3 @@
 # Defiance
 
-Developed with Unreal Engine 5
+Project for experimentation with 3rd person action multiplayer mechanics.
