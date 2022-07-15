@@ -28,6 +28,7 @@ void UBaseAnimInstance_ABP::NativeUpdateAnimation(float DeltaTimeX)
 	GroundSpeed = UKismetMathLibrary::VSizeXY(Velocity);
 	bShouldMove = (GroundSpeed > 3) && (!CharacterMovement->GetCurrentAcceleration().IsZero());
 	bIsFalling = CharacterMovement->IsFalling();
+	bIsCrouching = Character->bIsCrouching;
 
 	GroundSpeedBase3 = CalculateGroundSpeedBase3();
 	Stride = CalculateStride();
@@ -160,7 +161,7 @@ FVector2D UBaseAnimInstance_ABP::CalculateLeanFactor()
 		FVector NormalizedVelocity = Velocity;
 		NormalizedVelocity.Normalize();
 		float LeanRight = FVector::DotProduct(TryGetPawnOwner()->GetActorRightVector(), NormalizedVelocity);
-		return FVector2D(-LeanRight * GroundSpeed / Character->MaxWalkSpeed, 0.f);
+		return FVector2D(-LeanRight * GroundSpeed / Character->MaxRunSpeed, 0.f);
 
 	}
 	else

@@ -22,7 +22,7 @@
 ADefianceCharacter::ADefianceCharacter()
 {
 	// Set size for collision capsule
-	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+	GetCapsuleComponent()->InitCapsuleSize(CapsuleRadius, CapsuleHalfHeight);
 
 	// set our turn rate for input
 	TurnRateGamepad = 50.f;
@@ -40,7 +40,10 @@ ADefianceCharacter::ADefianceCharacter()
 	// instead of recompiling to adjust them
 	GetCharacterMovement()->JumpZVelocity = 700.f;
 	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->MaxWalkSpeed = MaxWalkSpeed;
+	GetCharacterMovement()->MaxWalkSpeed = MaxRunSpeed;
+	GetCharacterMovement()->CrouchedHalfHeight = CapsuleHalfHeightCrouched;
+	GetCharacterMovement()->NavAgentProps.bCanCrouch = bCanCrouch;
+	GetCharacterMovement()->MaxWalkSpeedCrouched = MaxCrouchSpeed;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 
@@ -98,6 +101,8 @@ void ADefianceCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ADefianceCharacter, MovementStance);
 	DOREPLIFETIME(ADefianceCharacter, bCanSprint);
 	DOREPLIFETIME(ADefianceCharacter, bIsSprinting);
+	DOREPLIFETIME(ADefianceCharacter, bCanCrouch);
+	DOREPLIFETIME(ADefianceCharacter, bIsCrouching);
 
 	//Replicate Dodge & Roll Variables
 	DOREPLIFETIME(ADefianceCharacter, DodgeRollAngle);
@@ -166,14 +171,15 @@ void ADefianceCharacter::SetupPlayerInputComponent(class UInputComponent* Player
 {
 	// Set up gameplay key bindings
 	check(PlayerInputComponent);
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
+	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ADefianceCharacter::Jump);
+	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ADefianceCharacter::StopJumping);
 
 	PlayerInputComponent->BindAxis("Move Forward / Backward", this, &ADefianceCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("Move Right / Left", this, &ADefianceCharacter::MoveRight);
 
 	PlayerInputComponent->BindAction("Sprint/Dodge", IE_Pressed, this, &ADefianceCharacter::DodgeRoll);
 	PlayerInputComponent->BindAction("Sprint/Dodge", IE_Released, this, &ADefianceCharacter::SR_EndSprint);
+	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &ADefianceCharacter::SR_ToggleCrouch);
 	PlayerInputComponent->BindAction("TargetLock", IE_Pressed, this, &ADefianceCharacter::ToggleTargetLock);
 
 	// We have 2 versions of the rotation bindings to handle different kinds of devices differently
@@ -199,6 +205,24 @@ void ADefianceCharacter::TouchStopped(ETouchIndex::Type FingerIndex, FVector Loc
 	StopJumping();
 }
 
+void ADefianceCharacter::Jump()
+{
+	if (CanJump())
+	{
+		if (bIsCrouching)
+		{
+			SR_ToggleCrouch();
+		}
+	}
+
+	Super::Jump();
+}
+
+void ADefianceCharacter::StopJumping()
+{
+	Super::StopJumping();
+}
+
 void ADefianceCharacter::DodgeRoll()
 {
 	// Get the possible dodge/roll angle in case of directional movement
@@ -222,11 +246,19 @@ void ADefianceCharacter::SR_DodgeRoll_Implementation()
 	//Check if the character can and should Dodge ...
 	if (bCanDodge && !bIsDodging && !bIsRolling && !GetCharacterMovement()->IsFalling())
 	{
+		if (bIsCrouching)
+		{
+			SR_ToggleCrouch();
+		}
 		SR_Dodge();
 	}
 	//... or can and should Roll
 	else if (bCanRoll && !bIsRolling && !GetCharacterMovement()->IsFalling())
 	{
+		if (bIsCrouching)
+		{
+			SR_ToggleCrouch();
+		}
 		SR_Roll();
 	}
 
@@ -321,7 +353,7 @@ void ADefianceCharacter::OnRep_IsSprinting()
 	else
 	{
 		MovementStance = EMovementStance::Running;
-		GetCharacterMovement()->MaxWalkSpeed = MaxWalkSpeed;
+		GetCharacterMovement()->MaxWalkSpeed = MaxRunSpeed;
 
 		//If character is locked on target when sprint ends then change to directional movement
 		if (bUseDirectionalMovement)
@@ -332,6 +364,41 @@ void ADefianceCharacter::OnRep_IsSprinting()
 	}
 }
 
+
+void ADefianceCharacter::SR_ToggleCrouch_Implementation()
+{
+	if (!bCanCrouch || GetCharacterMovement()->IsFalling() || bIsSprinting || bIsDodging || bIsRolling)
+		return;
+	else
+	{
+		if (!bIsCrouching)
+		{
+			bIsCrouching = true;
+			OnRep_IsCrouching();
+		}
+		else
+		{
+			bIsCrouching = false;
+			OnRep_IsCrouching();
+		}
+	}
+}
+
+void ADefianceCharacter::OnRep_IsCrouching()
+{
+	if (bIsCrouching)
+	{
+		MovementStance = EMovementStance::Crouched;
+		Crouch();
+		CameraBoom->SetRelativeLocation(FVector(0.f, 0.f, (CapsuleHalfHeight-CapsuleHalfHeightCrouched)));
+	}
+	else
+	{
+		MovementStance = EMovementStance::Running;
+		UnCrouch();
+		CameraBoom->SetRelativeLocation(FVector::Zero());
+	}
+}
 
 void ADefianceCharacter::TurnAtRate(float Rate)
 {

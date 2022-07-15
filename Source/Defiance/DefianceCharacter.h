@@ -58,6 +58,12 @@ protected:
 	/** Called for side to side input */
 	void MoveRight(float Value);
 
+	/** Called when the Jump button is pressed */
+	void Jump();
+
+	/** Called when the Jump button is released */
+	virtual void StopJumping();
+
 	/** Called when the Dodge/Roll button is pressed */
 	void DodgeRoll();
 
@@ -85,6 +91,11 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void SR_EndSprint();
 	void SR_EndSprint_Implementation();
+
+	/** Called when the Crouch button is pressed */
+	UFUNCTION(Server, Reliable)
+	void SR_ToggleCrouch();
+	void SR_ToggleCrouch_Implementation();
 
 	/** Locks/Unlocks character orientation on a target */
 	void ToggleTargetLock();
@@ -163,13 +174,25 @@ public:
 	UFUNCTION()
 	void OnRep_IsLockedOnTarget();
 
+	/** Capsule Radius */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical Properties|Parameters")
+	float CapsuleRadius = 35.f;
+
+	/** Capsule Half Height when the Pawn is standing */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical Properties|Parameters")
+	float CapsuleHalfHeight = 90.f;
+
+	/** Capsule Half Height when the Pawn is crouching */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Physical Properties|Parameters")
+	float CapsuleHalfHeightCrouched = 60.f;
+
 	/** The maximum speed the pawn can move when crouched */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement|Parameters")
 	float MaxCrouchSpeed = 200.f;
 
 	/** The maximum speed the pawn can move when walking */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement|Parameters")
-	float MaxWalkSpeed = 500.f;
+	float MaxRunSpeed = 500.f;
 
 	/** The maximum speed the pawn can move when walking */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement|Parameters")
@@ -194,6 +217,17 @@ public:
 	/** Called on both Server (Manually) and Clients (Automatically) when bIsSprinting is replicated */
 	UFUNCTION()
 	void OnRep_IsSprinting();
+
+	/** Indicates if the character can crouch */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Movement|Essential Variables")
+	bool bCanCrouch = true;
+
+	/** Indicates if the character is crouching */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_IsCrouching, Category = "Movement|Essential Variables")
+	bool bIsCrouching = false;
+
+	UFUNCTION()
+	void OnRep_IsCrouching();
 
 	/** Holds the angle at which the pawn should dodge/roll when using directional movement */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Movement|Dodge & Roll")

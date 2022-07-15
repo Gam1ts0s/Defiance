@@ -65,6 +65,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
 	bool bIsFalling;
 
+	/** Indicates whether the Pawn is crouching or not */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
+	bool bIsCrouching;
+
 	/** Calculates the gait based on the currect speed and the maximum speed */
 	float CalculateGroundSpeedBase3();
 
