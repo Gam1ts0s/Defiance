@@ -15,6 +15,10 @@
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "EnhancedInput/Public/InputMappingContext.h"
+#include "EnhancedInput/Public/EnhancedInputSubsystems.h"
+#include "EnhancedInput/Public/EnhancedInputComponent.h"
+#include "MyInputConfigData.h"
 
 //////////////////////////////////////////////////////////////////////////
 // ADefianceCharacter
@@ -25,7 +29,7 @@ ADefianceCharacter::ADefianceCharacter()
 	GetCapsuleComponent()->InitCapsuleSize(CapsuleRadius, CapsuleHalfHeight);
 
 	// set our turn rate for input
-	TurnRateGamepad = 50.f;
+	TurnRateGamepad = 100.f;
 
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
@@ -41,7 +45,7 @@ ADefianceCharacter::ADefianceCharacter()
 	GetCharacterMovement()->JumpZVelocity = 700.f;
 	GetCharacterMovement()->AirControl = 0.35f;
 	GetCharacterMovement()->MaxWalkSpeed = MaxRunSpeed;
-	GetCharacterMovement()->CrouchedHalfHeight = CapsuleHalfHeightCrouched;
+	GetCharacterMovement()->SetCrouchedHalfHeight(CapsuleHalfHeightCrouched);
 	GetCharacterMovement()->NavAgentProps.bCanCrouch = bCanCrouch;
 	GetCharacterMovement()->MaxWalkSpeedCrouched = MaxCrouchSpeed;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
@@ -169,41 +173,33 @@ void ADefianceCharacter::Tick(float DeltaTime)
 
 void ADefianceCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
-	// Set up gameplay key bindings
+	// Get the player controller
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+
+	// Get the local player subsystem
+	UEnhancedInputLocalPlayerSubsystem* EnhancedInputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+	// Clear out existing mapping, and add our mapping
+	EnhancedInputSubsystem->ClearAllMappings();
+	EnhancedInputSubsystem->AddMappingContext(InputMapping, 0);
+
+	// Get the EnhancedInputComponent
 	check(PlayerInputComponent);
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ADefianceCharacter::Jump);
-	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ADefianceCharacter::StopJumping);
+	UEnhancedInputComponent* PlayerEnhancedInput = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 
-	PlayerInputComponent->BindAxis("Move Forward / Backward", this, &ADefianceCharacter::MoveForward);
-	PlayerInputComponent->BindAxis("Move Right / Left", this, &ADefianceCharacter::MoveRight);
+	// Set up gameplay key bindings
+	PlayerEnhancedInput->BindAction(InputConfigData->InputMove, ETriggerEvent::Triggered, this, &ADefianceCharacter::Move);
+	PlayerEnhancedInput->BindAction(InputConfigData->InputLook, ETriggerEvent::Triggered, this, &ADefianceCharacter::Look);
+	PlayerEnhancedInput->BindAction(InputConfigData->InputLookStick, ETriggerEvent::Triggered, this, &ADefianceCharacter::LookStick);
 
-	PlayerInputComponent->BindAction("Sprint/Dodge", IE_Pressed, this, &ADefianceCharacter::DodgeRoll);
-	PlayerInputComponent->BindAction("Sprint/Dodge", IE_Released, this, &ADefianceCharacter::SR_EndSprint);
-	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &ADefianceCharacter::SR_ToggleCrouch);
-	PlayerInputComponent->BindAction("TargetLock", IE_Pressed, this, &ADefianceCharacter::ToggleTargetLock);
+	PlayerEnhancedInput->BindAction(InputConfigData->InputJump, ETriggerEvent::Started, this, &ADefianceCharacter::Jump);
+	PlayerEnhancedInput->BindAction(InputConfigData->InputJump, ETriggerEvent::Completed, this, &ADefianceCharacter::StopJumping);
+	PlayerEnhancedInput->BindAction(InputConfigData->InputSprintDodge, ETriggerEvent::Started, this, &ADefianceCharacter::DodgeRoll);
+	PlayerEnhancedInput->BindAction(InputConfigData->InputSprintDodge, ETriggerEvent::Completed, this, &ADefianceCharacter::SR_EndSprint);
+	PlayerEnhancedInput->BindAction(InputConfigData->InputCrouch, ETriggerEvent::Triggered, this, &ADefianceCharacter::SR_ToggleCrouch);
 
-	// We have 2 versions of the rotation bindings to handle different kinds of devices differently
-	// "turn" handles devices that provide an absolute delta, such as a mouse.
-	// "turnrate" is for devices that we choose to treat as a rate of change, such as an analog joystick
-	PlayerInputComponent->BindAxis("Turn Right / Left Mouse", this, &ADefianceCharacter::Turn);
-	PlayerInputComponent->BindAxis("Turn Right / Left Gamepad", this, &ADefianceCharacter::TurnAtRate);
-	PlayerInputComponent->BindAxis("Look Up / Down Mouse", this, &ADefianceCharacter::LookUp);
-	PlayerInputComponent->BindAxis("Look Up / Down Gamepad", this, &ADefianceCharacter::LookUpAtRate);
-
-	// handle touch devices
-	PlayerInputComponent->BindTouch(IE_Pressed, this, &ADefianceCharacter::TouchStarted);
-	PlayerInputComponent->BindTouch(IE_Released, this, &ADefianceCharacter::TouchStopped);
+	PlayerEnhancedInput->BindAction(InputConfigData->InputTargetLock, ETriggerEvent::Triggered, this, &ADefianceCharacter::ToggleTargetLock);
 }
 
-void ADefianceCharacter::TouchStarted(ETouchIndex::Type FingerIndex, FVector Location)
-{
-	Jump();
-}
-
-void ADefianceCharacter::TouchStopped(ETouchIndex::Type FingerIndex, FVector Location)
-{
-	StopJumping();
-}
 
 void ADefianceCharacter::Jump()
 {
@@ -400,83 +396,97 @@ void ADefianceCharacter::OnRep_IsCrouching()
 	}
 }
 
-void ADefianceCharacter::TurnAtRate(float Rate)
+void ADefianceCharacter::Move(const FInputActionValue& Value)
 {
-	// calculate delta for this frame from the rate information
+	if (Controller != nullptr)
+	{
+		const FVector2D MoveValue = Value.Get<FVector2D>();
+		const FRotator MovementRotation(0, Controller->GetControlRotation().Yaw, 0);
+
+		// Forward/Backward movement
+		if (MoveValue.Y != 0.f)
+		{
+			// find out which way is forward
+			FRotator Rotation;
+			if (!bIsLockedOnTarget)
+			{
+				Rotation = Controller->GetControlRotation();
+			}
+			else
+			{
+				Rotation = FollowCamera->GetComponentRotation();
+			}
+
+			const FRotator YawRotation(0, Rotation.Yaw, 0);
+
+			// Get forward vector
+			//const FVector Direction = MovementRotation.RotateVector(FVector::ForwardVector);
+			const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+			AddMovementInput(Direction, MoveValue.Y);
+		}
+
+		// Right/Left movement
+		if (MoveValue.X != 0.f)
+		{
+			// find out which way is right
+			FRotator Rotation;
+			if (!bIsLockedOnTarget)
+			{
+				Rotation = Controller->GetControlRotation();
+			}
+			else
+			{
+				Rotation = FollowCamera->GetComponentRotation();
+			}
+			const FRotator YawRotation(0, Rotation.Yaw, 0);
+
+			// Get right vector
+			//const FVector Direction = MovementRotation.RotateVector(FVector::RightVector);
+			const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+			AddMovementInput(Direction, MoveValue.X);
+		}
+	}
+}
+
+void ADefianceCharacter::Look(const FInputActionValue& Value)
+{
 	if (!bIsLockedOnTarget)
 	{
-		AddControllerYawInput(Rate * TurnRateGamepad * GetWorld()->GetDeltaSeconds());
+		if (Controller != nullptr)
+		{
+			const FVector2D LookValue = Value.Get<FVector2D>();
+
+			if (LookValue.X != 0.f)
+			{
+				AddControllerYawInput(LookValue.X);
+			}
+
+			if (LookValue.Y != 0.f)
+			{
+				AddControllerPitchInput(LookValue.Y);
+			}
+		}
 	}
 }
 
-void ADefianceCharacter::Turn(float Rate)
+void ADefianceCharacter::LookStick(const FInputActionValue& Value)
 {
 	if (!bIsLockedOnTarget)
 	{
-		AddControllerYawInput(Rate);
-	}
-}
-
-void ADefianceCharacter::LookUpAtRate(float Rate)
-{
-	// calculate delta for this frame from the rate information
-	if (!bIsLockedOnTarget)
-	{
-		AddControllerPitchInput(Rate * TurnRateGamepad * GetWorld()->GetDeltaSeconds());
-	}
-}
-
-void ADefianceCharacter::LookUp(float Rate)
-{
-	if (!bIsLockedOnTarget)
-	{
-		AddControllerPitchInput(Rate);
-	}
-}
-
-void ADefianceCharacter::MoveForward(float Value)
-{
-	if ((Controller != nullptr) && (Value != 0.0f))
-	{
-		// find out which way is forward
-		FRotator Rotation;
-		if (!bIsLockedOnTarget)
+		if (Controller != nullptr)
 		{
-			Rotation = Controller->GetControlRotation();		
-		}
-		else
-		{
-			Rotation = FollowCamera->GetComponentRotation();
-		}
-		
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
+			const FVector2D LookValue = Value.Get<FVector2D>();
 
-		// get forward vector
-		const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-		AddMovementInput(Direction, Value);
-	}
-}
+			if (LookValue.X != 0.f)
+			{
+				AddControllerYawInput(LookValue.X * TurnRateGamepad * GetWorld()->GetDeltaSeconds());
+			}
 
-void ADefianceCharacter::MoveRight(float Value)
-{
-	if ( (Controller != nullptr) && (Value != 0.0f) )
-	{
-		// find out which way is right
-		FRotator Rotation;
-		if (!bIsLockedOnTarget)
-		{
-			Rotation = Controller->GetControlRotation();
+			if (LookValue.Y != 0.f)
+			{
+				AddControllerPitchInput(-1.0 * LookValue.Y * TurnRateGamepad * GetWorld()->GetDeltaSeconds());
+			}
 		}
-		else
-		{
-			Rotation = FollowCamera->GetComponentRotation();
-		}
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
-	
-		// get right vector 
-		const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-		// add movement in that direction
-		AddMovementInput(Direction, Value);
 	}
 }
 
@@ -647,20 +657,32 @@ void ADefianceCharacter::RotateCamera()
 
 FVector ADefianceCharacter::GetPlayerInputMovementDirectionXY()
 {
-	FRotator CameraRotation = FollowCamera->GetComponentRotation();
-	float ForwardMovementValue = GetInputAxisValue("Move Forward / Backward");
-	float RightMovementValue = GetInputAxisValue("Move Right / Left");
+	// Get the input of the movement action value
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+	UEnhancedPlayerInput* PlayerInput = Subsystem->GetPlayerInput();
+	FInputActionValue MoveInputValue = PlayerInput->GetActionValue(InputConfigData->InputMove);
+	FVector2D MovementValue = MoveInputValue.Get<FVector2D>();
 
-	return UBasicSupportLibrary::GetPlayerInputMovementDirectionXY(CameraRotation, ForwardMovementValue, RightMovementValue);
+	// Get the player camera rotation
+	FRotator CameraRotation = FollowCamera->GetComponentRotation();
+
+	return UBasicSupportLibrary::GetPlayerInputMovementDirectionXY(CameraRotation, MovementValue.Y, MovementValue.X);
 }
 
 FVector ADefianceCharacter::GetPlayerInputMovementDirection()
 {
-	FRotator CameraRotation = FollowCamera->GetComponentRotation();
-	float ForwardMovementValue = GetInputAxisValue("Move Forward / Backward");
-	float RightMovementValue = GetInputAxisValue("Move Right / Left");
+	// Get the input of the movement action value
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+	UEnhancedPlayerInput* PlayerInput = Subsystem->GetPlayerInput();
+	FInputActionValue MoveInputValue = PlayerInput->GetActionValue(InputConfigData->InputMove);
+	FVector2D MovementValue = MoveInputValue.Get<FVector2D>();
 
-	return UBasicSupportLibrary::GetPlayerInputMovementDirection(CameraRotation, ForwardMovementValue, RightMovementValue);
+	// Get the player camera rotation
+	FRotator CameraRotation = FollowCamera->GetComponentRotation();
+
+	return UBasicSupportLibrary::GetPlayerInputMovementDirection(CameraRotation, MovementValue.Y, MovementValue.X);
 }
 
 

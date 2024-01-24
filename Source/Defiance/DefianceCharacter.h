@@ -8,6 +8,7 @@
 #include "Curves/CurveFloat.h"
 #include "Components/WidgetComponent.h"
 #include "Components/TimelineComponent.h"
+#include "InputActionValue.h"
 #include "DefianceCharacter.generated.h"
 
 UCLASS(config=Game)
@@ -52,11 +53,21 @@ protected:
 	/** Called when the game starts or when spawned */
 	virtual void BeginPlay() override;
 
-	/** Called for forwards/backward input */
-	void MoveForward(float Value);
+	/** Chracter input mapping */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category=EnhancedInput)
+	class UInputMappingContext* InputMapping;
 
-	/** Called for side to side input */
-	void MoveRight(float Value);
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = EnhancedInput)
+	class UMyInputConfigData* InputConfigData;
+
+	/** Handle move input */ 
+	void Move(const FInputActionValue& Value);
+
+	/** Handle look input with a mouse */
+	void Look(const FInputActionValue& Value);
+
+	/** Handle look input with a stick */
+	void LookStick(const FInputActionValue& Value);
 
 	/** Called when the Jump button is pressed */
 	void Jump();
@@ -107,30 +118,6 @@ protected:
 	UFUNCTION(Client, Reliable)
 	void CL_ToggleTargetLockWidget(ADefianceCharacter* Target);
 	void CL_ToggleTargetLockWidget_Implementation(ADefianceCharacter* Target);
-
-	/** 
-	 * Called via input to turn at a given rate. 
-	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
-	 */
-	void TurnAtRate(float Rate);
-
-	/** Used to turn Pawn based on mouse input */
-	void Turn(float Rate);
-
-	/**
-	 * Called via input to turn look up/down at a given rate. 
-	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
-	 */
-	void LookUpAtRate(float Rate);
-
-	/** Used to make Pawn look up/down based on mouse input */
-	void LookUp(float Rate);
-
-	/** Handler for when a touch input begins. */
-	void TouchStarted(ETouchIndex::Type FingerIndex, FVector Location);
-
-	/** Handler for when a touch input stops. */
-	void TouchStopped(ETouchIndex::Type FingerIndex, FVector Location);
 
 
 	/** Attempts to select a target to lock on */
