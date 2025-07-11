@@ -8,61 +8,43 @@
 
 void UBaseAnimInstance_ABP::NativeInitializeAnimation()
 {
-	// Getting the references
 	Character = Cast<ADefianceCharacter>(GetOwningActor());
-
-	if(Character != nullptr)
+	if (IsValid(Character))
+	{
 		CharacterMovement = Character->GetCharacterMovement();
+	}
 }
 
 void UBaseAnimInstance_ABP::NativeUpdateAnimation(float DeltaTimeX)
 {
-	if (Character == nullptr)
-		return;
-
-
-	// Calculate essential variables
-	bUseDirectionalMovement = Character->bUseDirectionalMovement;
-	Velocity = CharacterMovement->Velocity;
-	MovementStance = Character->MovementStance;
-	GroundSpeed = UKismetMathLibrary::VSizeXY(Velocity);
-	bShouldMove = (GroundSpeed > 3) && (!CharacterMovement->GetCurrentAcceleration().IsZero());
-	bIsFalling = CharacterMovement->IsFalling();
-	bIsCrouching = Character->bIsCrouching;
-
-	GroundSpeedBase3 = CalculateGroundSpeedBase3();
-	Stride = CalculateStride();
 	
-	//Calculate the movement direction to change state in the directional movement
-	MovementDirection = CalculateMovementDirection(70.f, -70.f, 110.f, -110.f, 5.f);
+}
 
-	//Calculate and interpolate the velocity blends so you can blend directional movement animations
+
+void UBaseAnimInstance_ABP::UpdateMovementState()
+{	
+	if (!IsValid(Character) || !IsValid(CharacterMovement)) { return; }
+
+	Velocity = CharacterMovement->Velocity;
+
+	GroundSpeed = UKismetMathLibrary::VSizeXY(Velocity);
+	GroundSpeedBase3 = (GroundSpeed / CharacterMovement->MaxWalkSpeed) * 3;
+
+	bShouldMove = (GroundSpeed > 3) && (!CharacterMovement->GetCurrentAcceleration().IsZero());
+
+	bIsFalling = CharacterMovement->IsFalling();
+
+	Stride = (GroundSpeed < MaxStrideSpeed) ? GroundSpeed / MaxStrideSpeed : 1.0f;
+}
+
+
+
+void UBaseAnimInstance_ABP::UpdateVelocityBlend(float DeltaTimeX)
+{
+	if (!IsValid(Character)) { return; }
+
 	FVelocityBlend TargetVelocityBlend = CalculateVelocityBlend();
 	VelocityBlend = InterpVelocityBlend(VelocityBlend, TargetVelocityBlend, 12.f, DeltaTimeX);
-
-	//Calculate lean factor
-	LeanFactor = CalculateLeanFactor();
-	
-	
-}
-
-
-float UBaseAnimInstance_ABP::CalculateGroundSpeedBase3()
-{
-	return (GroundSpeed / CharacterMovement->MaxWalkSpeed) * 3;
-}
-
-
-float UBaseAnimInstance_ABP::CalculateStride()
-{
-	if (GroundSpeed < MaxStrideSpeed)
-	{
-		return GroundSpeed / MaxStrideSpeed;
-	}
-	else
-	{
-		return 1.f;
-	}
 }
 
 FVelocityBlend UBaseAnimInstance_ABP::CalculateVelocityBlend()
@@ -90,7 +72,6 @@ FVelocityBlend UBaseAnimInstance_ABP::CalculateVelocityBlend()
 }
 
 
-
 FVelocityBlend UBaseAnimInstance_ABP::InterpVelocityBlend(FVelocityBlend CurrentVB, FVelocityBlend TargetVB, float InterpSpeed, float DeltaTime)
 {
 	FVelocityBlend InterpolatedVB;
@@ -105,9 +86,10 @@ FVelocityBlend UBaseAnimInstance_ABP::InterpVelocityBlend(FVelocityBlend Current
 }
 
 
-
-EMovementDirection UBaseAnimInstance_ABP::CalculateMovementDirection(float FR_Threshold, float FL_Threshold, float BR_Threshold, float BL_Threshold, float Buffer)
+void UBaseAnimInstance_ABP::UpdateMovementDirection(float FR_Threshold, float FL_Threshold, float BR_Threshold, float BL_Threshold, float Buffer)
 {
+	if (!IsValid(Character)) { return; }
+
 	FRotator DeltaRotation = Velocity.Rotation() - Character->GetActorRotation();
 
 	bool bIncreaseBuffer = (MovementDirection != EMovementDirection::MD_F);
@@ -116,24 +98,25 @@ EMovementDirection UBaseAnimInstance_ABP::CalculateMovementDirection(float FR_Th
 	bool AngleBetweenFR_BR = AngleInRange(DeltaRotation.Yaw, FR_Threshold, BR_Threshold, Buffer, bIncreaseBuffer);
 	bIncreaseBuffer = (MovementDirection != EMovementDirection::MD_L);
 	bool AngleBetweenBL_FL = AngleInRange(DeltaRotation.Yaw, BL_Threshold, FL_Threshold, Buffer, bIncreaseBuffer);
-	
+
 	if (AngleBetweenFL_FR)
 	{
-		return EMovementDirection::MD_F;
+		MovementDirection = EMovementDirection::MD_F;
 	}
 	else if (AngleBetweenFR_BR)
 	{
-		return EMovementDirection::MD_R;
+		MovementDirection = EMovementDirection::MD_R;
 	}
 	else if (AngleBetweenBL_FL)
 	{
-		return EMovementDirection::MD_L;
+		MovementDirection = EMovementDirection::MD_L;
 	}
 	else
 	{
-		return EMovementDirection::MD_B;
+		MovementDirection = EMovementDirection::MD_B;
 	}
 }
+
 
 
 
@@ -150,89 +133,42 @@ bool UBaseAnimInstance_ABP::AngleInRange(float Angle, float MinAngle, float MaxA
 }
 
 
-FVector2D UBaseAnimInstance_ABP::CalculateLeanFactor()
+
+
+void UBaseAnimInstance_ABP::UpdateLeanFactor()
 {
-	//check if character is NULL of if character is in the air
-	if ((Character == nullptr) || (bIsFalling))
-		return FVector2D(0.f, 0.f);
+	if ((!IsValid(Character)) || (bIsFalling))
+	{
+		LeanFactor = FVector2D(0.f, 0.f);
+		return;
+	}
 
 	if (!bUseDirectionalMovement)
 	{
 		FVector NormalizedVelocity = Velocity;
 		NormalizedVelocity.Normalize();
 		float LeanRight = FVector::DotProduct(TryGetPawnOwner()->GetActorRightVector(), NormalizedVelocity);
-		return FVector2D(-LeanRight * GroundSpeed / Character->MaxRunSpeed, 0.f);
-
+		LeanFactor = FVector2D(-LeanRight * LeanMultiplier * GroundSpeed / CharacterMovement->MaxWalkSpeed, 0.f);
 	}
 	else
 	{
 		FVector NormalizedVelocity = Velocity;
 		NormalizedVelocity.Normalize();
 		FVector RelativeNormVelocity = Character->GetMesh()->GetComponentRotation().UnrotateVector(NormalizedVelocity);
-
-		return FVector2D(-RelativeNormVelocity.X * GroundSpeed/Character->MaxSprintSpeed, RelativeNormVelocity.Y * GroundSpeed / Character->MaxSprintSpeed);
+		LeanFactor = FVector2D(-RelativeNormVelocity.X * GroundSpeed / CharacterMovement->MaxWalkSpeed, RelativeNormVelocity.Y * GroundSpeed / CharacterMovement->MaxWalkSpeed);
 	}
-
-	return FVector2D(0.f, 0.f);
 }
 
 
-void UBaseAnimInstance_ABP::PlayDirectionalMontage(float Angle, TMap<EDetailedDirection, UAnimMontage*> MontageMap)
+
+
+void UBaseAnimInstance_ABP::HandleUpdatedLockOn(AActor* NewTargetActorRef)
 {
-	//Forward
-	if (Angle <= 22.5f && Angle > -22.5f) {
-		if (MontageMap.Contains(EDetailedDirection::Forward)) {
-			Montage_Play(MontageMap[EDetailedDirection::Forward]);
-			UE_LOG(LogTemp, Log, TEXT("UBaseAnimInstance_ABP [PlayDirectionalMontage]: Playing %s at Angle %f."), *MontageMap[EDetailedDirection::Forward]->GetFName().ToString(), Angle)
-		}
-	}
-	//Forward Right
-	else if (Angle >= 22.5f && Angle < 67.5f) {
-		if (MontageMap.Contains(EDetailedDirection::ForwardRight)) {
-			Montage_Play(MontageMap[EDetailedDirection::ForwardRight]);
-			UE_LOG(LogTemp, Log, TEXT("UBaseAnimInstance_ABP [PlayDirectionalMontage]: Playing %s at Angle %f."), *MontageMap[EDetailedDirection::ForwardRight]->GetFName().ToString(), Angle)
-		}
-	}
-	//Right
-	else if (Angle >= 67.5f && Angle < 112.5) {
-		if (MontageMap.Contains(EDetailedDirection::Right)) {
-			Montage_Play(MontageMap[EDetailedDirection::Right]);
-			UE_LOG(LogTemp, Log, TEXT("UBaseAnimInstance_ABP [PlayDirectionalMontage]: Playing %s at Angle %f."), *MontageMap[EDetailedDirection::Right]->GetFName().ToString(), Angle)
-		}
-	}
-	//Backward Right
-	else if (Angle >= 112.5f && Angle < 157.5f) {
-		if (MontageMap.Contains(EDetailedDirection::BackwardRight)) {
-			Montage_Play(MontageMap[EDetailedDirection::BackwardRight]);
-			UE_LOG(LogTemp, Log, TEXT("UBaseAnimInstance_ABP [PlayDirectionalMontage]: Playing %s at Angle %f."), *MontageMap[EDetailedDirection::BackwardRight]->GetFName().ToString(), Angle)
-		}
-	}
-	//Backward
-	else if (Angle <= -157.5f || Angle >= 157.5f) {
-		if (MontageMap.Contains(EDetailedDirection::Backward)) {
-			Montage_Play(MontageMap[EDetailedDirection::Backward]);
-			UE_LOG(LogTemp, Log, TEXT("UBaseAnimInstance_ABP [PlayDirectionalMontage]: Playing %s at Angle %f."), *MontageMap[EDetailedDirection::Backward]->GetFName().ToString(), Angle)
-		}
-	}
-	//Backward Left
-	else if (Angle <= -112.5f && Angle > -157.5f) {
-		if (MontageMap.Contains(EDetailedDirection::BackwardLeft)) {
-			Montage_Play(MontageMap[EDetailedDirection::BackwardLeft]);
-			UE_LOG(LogTemp, Log, TEXT("UBaseAnimInstance_ABP [PlayDirectionalMontage]: Playing %s at Angle %f."), *MontageMap[EDetailedDirection::BackwardLeft]->GetFName().ToString(), Angle)
-		}
-	}
-	//Left
-	else if (Angle <= -67.5f && Angle > -122.5f) {
-		if (MontageMap.Contains(EDetailedDirection::Left)) {
-			Montage_Play(MontageMap[EDetailedDirection::Left]);
-			UE_LOG(LogTemp, Log, TEXT("UBaseAnimInstance_ABP [PlayDirectionalMontage]: Playing %s at Angle %f."), *MontageMap[EDetailedDirection::Left]->GetFName().ToString(), Angle)
-		}
-	}
-	//Forward Left
-	else if (Angle <= -22.5f && Angle > -67.5f) {
-		if (MontageMap.Contains(EDetailedDirection::ForwardLeft)) {
-			Montage_Play(MontageMap[EDetailedDirection::ForwardLeft]);
-			UE_LOG(LogTemp, Log, TEXT("UBaseAnimInstance_ABP [PlayDirectionalMontage]: Playing %s at Angle %f."), *MontageMap[EDetailedDirection::ForwardLeft]->GetFName().ToString(), Angle)
-		}
-	}
+	bUseDirectionalMovement = IsValid(NewTargetActorRef);
 }
+
+void UBaseAnimInstance_ABP::HandleUpdatedMovementStance(EMovementStance NewMovementStance)
+{
+	MovementStance = NewMovementStance;
+}
+

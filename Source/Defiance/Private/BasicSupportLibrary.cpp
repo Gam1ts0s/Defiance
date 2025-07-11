@@ -55,3 +55,43 @@ float UBasicSupportLibrary::GetAngleBetweenVectors(FVector VecA, FVector VecB)
 	VectorB.Normalize();
 	return FMath::RadiansToDegrees(acosf(FVector::DotProduct(VectorA, VectorB)));
 }
+
+EDetailedDirection UBasicSupportLibrary::GetDetailedDirectionFromAngle(float Angle)
+{
+	//Forward
+	if (Angle <= 22.5f && Angle > -22.5f) {
+		return EDetailedDirection::Forward;
+	}
+	//Forward Right
+	else if (Angle >= 22.5f && Angle < 67.5f) {
+		return EDetailedDirection::ForwardRight;
+	}
+	//Right
+	else if (Angle >= 67.5f && Angle < 112.5) {
+		return EDetailedDirection::Right;
+	}
+	//Backward Right
+	else if (Angle >= 112.5f && Angle < 157.5f) {
+		return EDetailedDirection::BackwardRight;
+	}
+	//Backward
+	else if (Angle <= -157.5f || Angle >= 157.5f) {
+		return EDetailedDirection::Backward;
+	}
+	//Backward Left
+	else if (Angle <= -112.5f && Angle > -157.5f) {
+		return EDetailedDirection::BackwardLeft;
+	}
+	//Left
+	else if (Angle <= -67.5f && Angle > -122.5f) {
+		return EDetailedDirection::Left;
+	}
+	//Forward Left
+	else if (Angle <= -22.5f && Angle > -67.5f) {
+		return EDetailedDirection::ForwardLeft;
+	}
+
+	return EDetailedDirection::Forward;
+}
+
+

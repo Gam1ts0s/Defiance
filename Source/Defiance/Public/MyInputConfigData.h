@@ -8,7 +8,7 @@
 #include "MyInputConfigData.generated.h"
 
 /**
- * 
+ * Data asset containing all input actions a character can have
  */
 UCLASS()
 class DEFIANCE_API UMyInputConfigData : public UDataAsset
@@ -30,6 +30,12 @@ public:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
     UInputAction* InputSprintDodge;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    UInputAction* InputSprint;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    UInputAction* InputDodgeRoll;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
     UInputAction* InputCrouch;

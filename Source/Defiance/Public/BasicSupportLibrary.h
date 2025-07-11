@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Types.h"
 #include "BasicSupportLibrary.generated.h"
 
 /**
@@ -30,4 +31,8 @@ public:
 	// Returns the angle between the 2 vectors
 	UFUNCTION(BlueprintCallable)
 	static float GetAngleBetweenVectors(FVector VecA, FVector VecB);
+
+	// Returns the EDetailedDirection based on the given angle
+	UFUNCTION(BlueprintCallable)
+	static EDetailedDirection GetDetailedDirectionFromAngle(float Angle);
 };

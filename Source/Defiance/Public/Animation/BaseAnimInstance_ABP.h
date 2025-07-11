@@ -34,6 +34,22 @@ public:
 	class UCharacterMovementComponent* CharacterMovement;
 
 
+	/** Indicates whether the Pawn is Crouching, Walking, Running or Sprinting */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
+	EMovementStance MovementStance = EMovementStance::Running;
+
+	UFUNCTION(BlueprintCallable)
+	void HandleUpdatedMovementStance(EMovementStance NewMovementStance);
+
+	/** Indicates whether the character should use directional movement */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
+	bool bUseDirectionalMovement = false;
+
+	UFUNCTION(BlueprintCallable)
+	void HandleUpdatedLockOn(AActor* NewTargetActorRef);
+
+
+
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Essential Movement Data")
 	FVector Velocity;
@@ -57,27 +73,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
 	bool bShouldMove;
 
-	/** Indicates whether the Pawn is Crouching, Walking, Running or Sprinting */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
-	EMovementStance MovementStance;
-
 	/** Indicates whether the Pawn is falling or not */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
 	bool bIsFalling;
 
-	/** Indicates whether the Pawn is crouching or not */
+	UFUNCTION(BlueprintCallable)
+	void UpdateMovementState();
+
+
+	/** Indicates the quadrant of the movement direction */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
-	bool bIsCrouching;
+	EMovementDirection MovementDirection;
 
-	/** Calculates the gait based on the currect speed and the maximum speed */
-	float CalculateGroundSpeedBase3();
+	UFUNCTION(BlueprintCallable)
+	void UpdateMovementDirection(float FR_Threshold, float FL_Threshold, float BR_Threshold, float BL_Threshold, float Buffer);
 
-	/** Calculates the stride value the pawn should take */
-	float CalculateStride();
 
 	/** Velocity broken down to 4 vectors on the XY axis (+X, -X, +Y, -Y) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
 	FVelocityBlend VelocityBlend;
+
+	UFUNCTION(BlueprintCallable)
+	void UpdateVelocityBlend(float DeltaTimeX);
 
 	/** Calculates the velocity blend */
 	FVelocityBlend CalculateVelocityBlend();
@@ -85,35 +102,28 @@ public:
 	/** Returns the interpolation between the current velocity blendand the target velocity blend */
 	FVelocityBlend InterpVelocityBlend(FVelocityBlend CurrentVB, FVelocityBlend TargetVB, float InterpSpeed, float DeltaTime);
 
-	/** Indicates the quadrant of the movement direction */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
-	EMovementDirection MovementDirection;
-
-	/** Calculates the movement direction according to the specified thresholds */
-	EMovementDirection CalculateMovementDirection(float FR_Threshold, float FL_Threshold, float BR_Threshold, float BL_Threshold, float Buffer);
-	
-	/** Returns true if the angle is within the specified range with the buffer tolerance */
-	bool AngleInRange(float Angle, float MinAngle, float MaxAngle, float Buffer, bool bIncreaseBuffer);
-
-	/** Indicates whether the character should use directional movement */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Essential Movement Data")
-	bool bUseDirectionalMovement = false;
-
-	/** Calculate the lean factor (-1; 1) for the pawn when moving */
-	FVector2D CalculateLeanFactor();
 
 	/** Indicates the lean factor when pawn is moving */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Essential Movement Data")
 	FVector2D LeanFactor;
 
-	/** A collection of dodge animation montages mapped according to direction */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dodge & Roll|Dodge")
-	TMap<EDetailedDirection, UAnimMontage*> DodgeAnimMontage;
+	UPROPERTY(EditAnywhere, Category = "Essential Movement Data")
+	float LeanMultiplier{ 3.0f };
 
-	/** A collection of roll animation montages mapped according to direction */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dodge & Roll|Roll")
-	TMap<EDetailedDirection, UAnimMontage*> RollAnimMontage;
+	/** Calculate the lean factor (-1; 1) for the pawn when moving */
+	UFUNCTION(BlueprintCallable)
+	void UpdateLeanFactor();
 
-	void PlayDirectionalMontage(float Angle, TMap<EDetailedDirection, UAnimMontage*> MontageMap);
+
+	/** Returns true if the angle is within the specified range with the buffer tolerance */
+	bool AngleInRange(float Angle, float MinAngle, float MaxAngle, float Buffer, bool bIncreaseBuffer);
+
+	
+
+
+	
+
+	
+
 
 };
