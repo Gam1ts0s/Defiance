@@ -116,7 +116,7 @@ void ULockOnComponent::ToggleLockOn(float SphereRadious)
 bool ULockOnComponent::StartLockOn(float SphereRadious)
 {
 	// First detect valid targets within SphereRadious
-	FHitResult OutResult;
+	//FHitResult OutResult;
 	FVector CurrentLocation{ OwnerRef->GetActorLocation() };
 	FCollisionShape Sphere{ FCollisionShape::MakeSphere(SphereRadious) };
 	FCollisionQueryParams IgnoreParams{
@@ -136,7 +136,7 @@ bool ULockOnComponent::StartLockOn(float SphereRadious)
 		IgnoreParams
 	) };
 
-	UE_LOG(LogTemp, Warning, TEXT("LockOnComponent [StartLockOn]: Detected %d valid targets to lock on."), OutHit.Num())
+	//UE_LOG(LogTemp, Warning, TEXT("LockOnComponent [StartLockOn]: Detected %d valid targets to lock on."), OutHit.Num())
 
 	if (!bHasFoundTarget) { return 0; }
 
@@ -174,7 +174,7 @@ bool ULockOnComponent::StartLockOn(float SphereRadious)
 	if (!IsValid(NewTarget)) { return 0; }
 	if (!NewTarget->Implements<UEnemy>()) { return 0; }
 	
-	UE_LOG(LogTemp, Warning, TEXT("LockOnComponent [StartLockOn]: Best candidate to lock on is %s."), *NewTarget->GetName())
+	//UE_LOG(LogTemp, Warning, TEXT("LockOnComponent [StartLockOn]: Best candidate to lock on is %s."), *NewTarget->GetName())
 
 	// Perform all LockOn operations
 	Controller->SetIgnoreLookInput(true);
