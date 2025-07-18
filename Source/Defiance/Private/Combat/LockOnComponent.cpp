@@ -213,8 +213,9 @@ void ULockOnComponent::OnRep_CurrentTargetActor()
 	}
 	else
 	{
+		int32 ClientId = static_cast<int32>(UE::GetPlayInEditorID());
 		GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Yellow,
-			FString::Printf(TEXT("LockOnComponent [UpdateLockOn]: Client %d - updating LockOn Target"), GPlayInEditorID));
+			FString::Printf(TEXT("LockOnComponent [UpdateLockOn]: Client %d - updating LockOn Target"), ClientId));
 	}
 	
 

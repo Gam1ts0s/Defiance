@@ -7,7 +7,10 @@ public class DefianceEditorTarget : TargetRules
 {
 	public DefianceEditorTarget(TargetInfo Target) : base(Target)
 	{
-		Type = TargetType.Editor;
+        bOverrideBuildEnvironment = true;
+        CppStandard = CppStandardVersion.Cpp20;
+
+        Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V2;
 		ExtraModuleNames.Add("Defiance");
 	}
